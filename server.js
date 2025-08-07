@@ -4,22 +4,61 @@ import bodyParser from 'body-parser';
 import pkg from 'pg';
 const { Pool } = pkg;
 
+// Load environment variables from .env file in development
+if (process.env.NODE_ENV !== 'production') {
+  // NOTE: This line requires the 'dotenv' package to be installed.
+  // This is a common practice for local development and will not affect the production environment on Render.
+  // To install, run: `npm install dotenv` in your backend project directory.
+  // You do not need to commit the `.env` file itself.
+  const dotenv = await import('dotenv');
+  dotenv.config();
+}
+
 const app = express();
-const port = 5000;
+// Use process.env.PORT for Render, and fall back to 5000 for local development
+const port = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors());
+// Restrict CORS to your deployed frontend URL for security in production.
+const allowedOrigins = [
+  'https://tyagimanu1.github.io', // Your GitHub Pages base domain
+  'https://tyagimanu1.github.io/PropertyBang', // Your specific GitHub Pages project URL
+  'http://localhost:4000', // For local development of your React app
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'), false);
+    }
+  }
+}));
+
 app.use(bodyParser.json());
 
 // PostgreSQL connection
 const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'postgres', // Updated to connect to the `postgres` database
-  password: 'root',
-  port: 5432,
-  schema: 'public', // Explicitly set schema to public
+  // Use the connection string provided by Render via the DATABASE_URL environment variable.
+  // This is a crucial change to connect to your deployed database instead of localhost.
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    // Required for Render's managed PostgreSQL to work correctly.
+    rejectUnauthorized: false
+  }
 });
+
+// A test connection to confirm the database is reachable
+pool.connect((err, client, done) => {
+  if (err) {
+    console.error('Error connecting to the database:', err.message);
+  } else {
+    console.log('Successfully connected to the PostgreSQL database!');
+    done();
+  }
+});
+
 
 // API endpoint to fetch items
 app.get('/items', async (req, res) => {
@@ -108,5 +147,3 @@ app.get('/', (req, res) => {
 app.listen(port, () => {
     console.log(`Server running on http://localhost:${port}`);
 });
-
-// \d users
